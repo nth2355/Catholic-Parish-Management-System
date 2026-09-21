@@ -1,0 +1,300 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AcademicYearStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+}
+
+enum CatechistStatus {
+  NEW
+  PROBATION
+  ACTIVE
+  INACTIVE
+}
+
+enum ClassLevel {
+  TIM_HIEU
+  XUNG_TOI
+  RUOC_LE
+  THEM_SUC
+}
+
+enum ClassStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  ON_LEAVE
+  COMPLETED
+  WITHDRAWN
+}
+
+enum AssignmentRole {
+  PRIMARY
+  ASSISTANT
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  ENDED
+}
+
+enum SessionStatus {
+  UPCOMING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum AssessmentType {
+  WRITTEN
+  ORAL
+  PRACTICAL
+  OTHER
+}
+
+enum AssessmentStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ConductRating {
+  EXCELLENT
+  GOOD
+  AVERAGE
+  NEEDS_IMPROVEMENT
+}
+
+enum UserRole {
+  ADMIN
+  CATECHIST
+}
+
+model AcademicYear {
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String             @unique
+  startDate   DateTime           @db.Date
+  endDate     DateTime           @db.Date
+  status      AcademicYearStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  classes     Class[]
+  assessments Assessment[]
+}
+
+model Student {
+  id                String             @id @default(uuid()) @db.Uuid
+  studentCode       String?            @unique
+  fullName          String
+  baptismalName     String?
+  dateOfBirth       DateTime?          @db.Date
+  gender            String?
+  guardianName      String?
+  guardianPhone     String?
+  guardianEmail     String?
+  address           String?
+  status            StudentStatus      @default(ACTIVE)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  enrollments       Enrollment[]
+  attendances       Attendance[]
+  grades            Grade[]
+}
+
+model Catechist {
+  id                String             @id @default(uuid()) @db.Uuid
+  fullName          String
+  baptismalName     String?
+  dateOfBirth       DateTime?          @db.Date
+  phone             String?
+  email             String?            @unique
+  joinedAt          DateTime?          @db.Date
+  status            CatechistStatus    @default(NEW)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  userAccount       UserAccount?
+  assignments       TeachingAssignment[]
+  markedAttendances Attendance[]        @relation("AttendanceMarkedBy")
+  gradedRecords     Grade[]             @relation("GradeGradedBy")
+}
+
+model Class {
+  id                String             @id @default(uuid()) @db.Uuid
+  name              String
+  level             ClassLevel
+  capacity          Int                @default(30)
+  room              String?
+  dayOfWeek         Int?
+  startTime         String?
+  endTime           String?
+  status            ClassStatus        @default(ACTIVE)
+  academicYearId    String             @db.Uuid
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  academicYear      AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  enrollments       Enrollment[]
+  assignments       TeachingAssignment[]
+  sessions          Session[]
+  assessments       Assessment[]
+
+  @@unique([academicYearId, name])
+  @@index([academicYearId, level])
+}
+
+model Enrollment {
+  id                String             @id @default(uuid()) @db.Uuid
+  studentId         String             @db.Uuid
+  classId           String             @db.Uuid
+  status            EnrollmentStatus   @default(ACTIVE)
+  enrolledAt        DateTime           @default(now())
+  withdrawnAt       DateTime?
+  note              String?
+
+  student           Student            @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  class             Class              @relation(fields: [classId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, classId])
+  @@index([classId, status])
+}
+
+model TeachingAssignment {
+  id                String             @id @default(uuid()) @db.Uuid
+  classId           String             @db.Uuid
+  catechistId       String             @db.Uuid
+  role              AssignmentRole     @default(PRIMARY)
+  status            AssignmentStatus  @default(ACTIVE)
+  assignedAt        DateTime           @default(now())
+  endedAt           DateTime?
+  note              String?
+
+  class             Class              @relation(fields: [classId], references: [id], onDelete: Restrict)
+  catechist         Catechist          @relation(fields: [catechistId], references: [id], onDelete: Restrict)
+  sessions          Session[]
+
+  @@unique([classId, catechistId, role])
+  @@index([catechistId, status])
+}
+
+model Session {
+  id                String             @id @default(uuid()) @db.Uuid
+  classId           String             @db.Uuid
+  assignmentId      String?            @db.Uuid
+  topic             String
+  sessionDate       DateTime           @db.Date
+  startTime         String
+  endTime           String
+  room              String?
+  status            SessionStatus      @default(UPCOMING)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  class             Class              @relation(fields: [classId], references: [id], onDelete: Restrict)
+  assignment        TeachingAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  attendances       Attendance[]
+
+  @@index([classId, sessionDate])
+  @@index([assignmentId])
+}
+
+model Attendance {
+  id                String             @id @default(uuid()) @db.Uuid
+  sessionId         String             @db.Uuid
+  studentId         String             @db.Uuid
+  status            AttendanceStatus  
+  note              String?
+  markedAt          DateTime           @default(now())
+  markedById        String?            @db.Uuid
+
+  session           Session            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student           Student            @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  markedBy          Catechist?         @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, studentId])
+  @@index([studentId, status])
+}
+
+model Assessment {
+  id                String             @id @default(uuid()) @db.Uuid
+  academicYearId    String             @db.Uuid
+  classId           String?            @db.Uuid
+  name              String
+  type              AssessmentType
+  assessmentDate    DateTime           @db.Date
+  maxScore          Decimal            @default(10) @db.Decimal(5, 2)
+  status            AssessmentStatus   @default(PLANNED)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  academicYear      AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  class             Class?             @relation(fields: [classId], references: [id], onDelete: SetNull)
+  grades            Grade[]
+
+  @@index([academicYearId, assessmentDate])
+  @@index([classId])
+}
+
+model Grade {
+  id                String             @id @default(uuid()) @db.Uuid
+  assessmentId      String             @db.Uuid
+  studentId         String             @db.Uuid
+  score             Decimal?           @db.Decimal(5, 2)
+  conduct           ConductRating?
+  comment           String?
+  gradedAt          DateTime           @default(now())
+  gradedById        String?            @db.Uuid
+
+  assessment        Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student           Student            @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  gradedBy          Catechist?         @relation("GradeGradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
+
+  @@unique([assessmentId, studentId])
+  @@index([studentId])
+}
+
+model UserAccount {
+  id                String             @id @default(uuid()) @db.Uuid
+  email             String             @unique
+  passwordHash      String
+  role              UserRole
+  isActive          Boolean            @default(true)
+  catechistId       String?            @unique @db.Uuid
+  lastLoginAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  catechist         Catechist?         @relation(fields: [catechistId], references: [id], onDelete: SetNull)
+}

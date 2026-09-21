@@ -1,0 +1,10 @@
+{
+  "description": "Manage catechism classes and student attendance efficiently with a user-friendly interface designed for parish admins and catechists, enhancing educational workflows.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
