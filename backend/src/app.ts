@@ -5,6 +5,7 @@ import { prisma } from "./db/prisma.js";
 import authRoutes from "./routes/auth.route.js";
 import catechistRoutes from "./routes/catechist.routes.js";
 import classRoutes from "./routes/class.routes.js";
+import sessionRoutes from "./routes/session.routes.js";
 import studentRoutes from "./routes/student.routes.js";
 import userRoutes from "./routes/user.routes.js";
 
@@ -21,6 +22,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/catechists", catechistRoutes);
 app.use("/api/students", studentRoutes);
+app.use("/api/sessions", sessionRoutes);
 app.use("/api/classes", classRoutes);
 
 const PORT = process.env.PORT || 3000;
