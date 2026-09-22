@@ -41,7 +41,10 @@ type ParishClass = {
   academicYearId: string;
   academicYear: AcademicYear;
   _count: { enrollments: number };
+  assignments: { id: string; role: "PRIMARY" | "ASSISTANT"; catechist: { id: string; fullName: string; baptismalName: string | null } }[];
 };
+type CatechistOption = { id: string; fullName: string; baptismalName: string | null };
+type Assignment = { id: string; role: "PRIMARY" | "ASSISTANT"; catechist: CatechistOption };
 
 type ClassForm = {
   name: string;
@@ -105,12 +108,18 @@ export default function ClassManagement() {
   const [showClassDialog, setShowClassDialog] = useState(false);
   const [showYearDialog, setShowYearDialog] = useState(false);
   const [showRosterDialog, setShowRosterDialog] = useState(false);
+  const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
   const [editingClass, setEditingClass] = useState<ParishClass | null>(null);
   const [rosterClass, setRosterClass] = useState<ParishClass | null>(null);
   const [roster, setRoster] = useState<{ id: string; status: string; student: { id: string; fullName: string; baptismalName: string | null } }[]>([]);
   const [availableStudents, setAvailableStudents] = useState<{ id: string; fullName: string; baptismalName: string | null }[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [assignmentClass, setAssignmentClass] = useState<ParishClass | null>(null);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [catechistOptions, setCatechistOptions] = useState<CatechistOption[]>([]);
+  const [selectedCatechistId, setSelectedCatechistId] = useState("");
+  const [assignmentRole, setAssignmentRole] = useState("PRIMARY");
   const [classForm, setClassForm] = useState<ClassForm>(emptyClass);
   const [yearForm, setYearForm] = useState<YearForm>(emptyYear);
   const [loading, setLoading] = useState(true);
@@ -143,12 +152,14 @@ export default function ClassManagement() {
       if (search) params.set("search", search);
       if (levelFilter) params.set("level", levelFilter);
       if (yearFilter) params.set("academicYearId", yearFilter);
-      const [yearResult, classResult] = await Promise.all([
+      const [yearResult, classResult, catechistResult] = await Promise.all([
         request("/classes/academic-years"),
         request(`/classes?${params}`),
+        request("/catechists?status=ACTIVE"),
       ]);
       setYears(yearResult.data);
       setClasses(classResult.data);
+      setCatechistOptions(catechistResult.data);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Không thể tải dữ liệu lớp học", "error");
     } finally {
@@ -282,6 +293,46 @@ export default function ClassManagement() {
     }
   };
 
+  const openAssignments = async (classRecord: ParishClass) => {
+    setAssignmentClass(classRecord);
+    setShowAssignmentDialog(true);
+    try {
+      const result = await request(`/classes/${classRecord.id}/assignments`);
+      setAssignments(result.data);
+      setSelectedCatechistId("");
+      setAssignmentRole("PRIMARY");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể tải phân công", "error");
+    }
+  };
+
+  const addAssignment = async () => {
+    if (!assignmentClass || !selectedCatechistId) return;
+    try {
+      await request(`/classes/${assignmentClass.id}/assignments`, {
+        method: "POST",
+        body: JSON.stringify({ catechistId: selectedCatechistId, role: assignmentRole }),
+      });
+      showToast("Đã phân công giáo lý viên");
+      await openAssignments(assignmentClass);
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể phân công giáo lý viên", "error");
+    }
+  };
+
+  const endAssignment = async (assignmentId: string) => {
+    if (!assignmentClass || !window.confirm("Kết thúc phân công này?")) return;
+    try {
+      await request(`/classes/${assignmentClass.id}/assignments/${assignmentId}`, { method: "DELETE" });
+      showToast("Đã kết thúc phân công");
+      await openAssignments(assignmentClass);
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể kết thúc phân công", "error");
+    }
+  };
+
   return (
     <div className="p-6 space-y-5 max-w-6xl mx-auto">
       <SectionHeader
@@ -304,16 +355,17 @@ export default function ClassManagement() {
           <EmptyState icon={<BookOpenIcon size={40} />} title="Chưa có lớp học" description={years.length ? "Tạo lớp học đầu tiên cho năm học" : "Hãy tạo năm học trước khi tạo lớp"} />
         ) : (
           <Table
-            headers={["Lớp học", "Khối", "Năm học", "Học sinh", "Lịch học", "Phòng", "Trạng thái", ""]}
+            headers={["Lớp học", "Khối", "Năm học", "Giáo lý viên", "Học sinh", "Lịch học", "Phòng", "Trạng thái", ""]}
             rows={classes.map((classRecord) => [
               <span className="font-medium text-warm-900">{classRecord.name}</span>,
               <Badge variant={classRecord.level === "THEM_SUC" ? "gold" : classRecord.level === "RUOC_LE" ? "success" : "navy"}>{levelLabels[classRecord.level]}</Badge>,
               <span className="text-xs text-warm-500">{classRecord.academicYear.name}</span>,
+              <div className="flex flex-col gap-1">{classRecord.assignments?.length ? classRecord.assignments.map((assignment) => <Badge key={assignment.id} variant={assignment.role === "PRIMARY" ? "navy" : "default"}>{assignment.catechist.fullName}</Badge>) : <Badge variant="warning">Chưa phân công</Badge>}</div>,
               <span className="text-warm-700">{classRecord._count.enrollments} / {classRecord.capacity}</span>,
               <span className="text-xs text-warm-500">{classRecord.dayOfWeek === null ? "-" : `${dayLabels[classRecord.dayOfWeek]} ${classRecord.startTime || ""}`}</span>,
               <span className="text-xs text-warm-500">{classRecord.room || "-"}</span>,
               <Badge variant={classRecord.status === "ACTIVE" ? "success" : classRecord.status === "PAUSED" ? "warning" : "muted"}>{classRecord.status === "ACTIVE" ? "Đang hoạt động" : classRecord.status === "PAUSED" ? "Tạm dừng" : "Đã hoàn thành"}</Badge>,
-              <Dropdown dropUp trigger={<button className="text-warm-400 hover:text-warm-700 p-1 rounded cursor-pointer"><span className="text-lg leading-none">···</span></button>} items={[{ label: "Danh sách học sinh", onClick: () => void openRoster(classRecord) }, { label: "Chỉnh sửa", icon: <EditIcon />, onClick: () => openEditClass(classRecord) }, { label: "Xóa lớp", icon: <TrashIcon />, danger: true, onClick: () => void deleteClass(classRecord) }]} />,
+              <Dropdown dropUp trigger={<button className="text-warm-400 hover:text-warm-700 p-1 rounded cursor-pointer"><span className="text-lg leading-none">···</span></button>} items={[{ label: "Danh sách học sinh", onClick: () => void openRoster(classRecord) }, { label: "Phân công giáo lý viên", onClick: () => void openAssignments(classRecord) }, { label: "Chỉnh sửa", icon: <EditIcon />, onClick: () => openEditClass(classRecord) }, { label: "Xóa lớp", icon: <TrashIcon />, danger: true, onClick: () => void deleteClass(classRecord) }]} />,
             ])}
           />
         )}
@@ -375,6 +427,19 @@ export default function ClassManagement() {
             )}
           </div>
         )}
+      </Dialog>
+
+      <Dialog open={showAssignmentDialog} onClose={() => setShowAssignmentDialog(false)} title={assignmentClass ? `Phân công - ${assignmentClass.name}` : "Phân công giáo lý viên"}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+            <Select label="Giáo lý viên" value={selectedCatechistId} onChange={setSelectedCatechistId} placeholder="Chọn giáo lý viên" options={catechistOptions.filter((catechist) => !assignments.some((assignment) => assignment.catechist.id === catechist.id && assignment.role === assignmentRole)).map((catechist) => ({ value: catechist.id, label: `${catechist.fullName}${catechist.baptismalName ? ` - ${catechist.baptismalName}` : ""}` }))} />
+            <Button variant="primary" onClick={() => void addAssignment()} disabled={!selectedCatechistId}>Phân công</Button>
+          </div>
+          <Select label="Vai trò" value={assignmentRole} onChange={setAssignmentRole} options={[{ value: "PRIMARY", label: "Phụ trách chính" }, { value: "ASSISTANT", label: "Trợ giảng" }]} />
+          <div className="divide-y divide-warm-100 border border-warm-200 rounded-lg">
+            {assignments.length === 0 ? <p className="px-3 py-5 text-sm text-warm-400 text-center">Chưa có giáo lý viên được phân công</p> : assignments.map((assignment) => <div key={assignment.id} className="flex items-center justify-between px-3 py-2.5"><div><p className="text-sm font-medium text-warm-900">{assignment.catechist.fullName}</p><p className="text-xs text-warm-500">{assignment.role === "PRIMARY" ? "Phụ trách chính" : "Trợ giảng"}</p></div><button className="text-xs text-red-600 hover:text-red-800 cursor-pointer" onClick={() => void endAssignment(assignment.id)}>Kết thúc</button></div>)}
+          </div>
+        </div>
       </Dialog>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

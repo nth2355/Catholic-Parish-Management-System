@@ -1,4 +1,5 @@
 import { useState } from "react";
+import churchBackground from "../../assets/images/GiaoXuSaNam.webp";
 import parishLogo from "../../assets/images/logoGiaoxuSaNam.jpg";
 import type { UserRole } from "../App";
 import { Button, Input } from "../components/ui";
@@ -42,14 +43,25 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
   };
 
   return (
-    <div className="min-h-screen bg-warm-50 flex items-center justify-center p-4">
-      {/* Background subtle pattern */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-navy-50 rounded-full opacity-30 translate-x-1/2 -translate-y-1/2" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-gold-50 rounded-full opacity-40 -translate-x-1/3 translate-y-1/3" />
+    <div className="relative min-h-screen overflow-x-hidden bg-warm-50 md:flex md:items-center md:justify-end md:p-6">
+      <div className="absolute inset-0 hidden md:block" aria-hidden="true">
+        <img
+          src={churchBackground}
+          alt=""
+          className="h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-white/10" />
+      </div>
+      <div className="relative h-64 w-full overflow-hidden md:hidden" aria-hidden="true">
+        <img
+          src={churchBackground}
+          alt=""
+          className="h-full w-full object-cover object-[38%_center]"
+        />
+        <div className="absolute inset-0 bg-white/10" />
       </div>
 
-      <div className="relative w-full max-w-sm">
+      <div className="relative mx-auto w-full max-w-sm px-4 py-8 md:mx-0 md:mr-[7vw] md:max-w-md md:px-0 md:py-0">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
           <p className="text-sm italic text-warm-600 leading-relaxed mb-4">
@@ -70,7 +82,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl border border-warm-200 shadow-sm p-6">
+        <div className="rounded-2xl border border-white/70 bg-white/95 p-6 shadow-xl backdrop-blur-sm md:p-7">
           <h2 className="text-base font-semibold text-warm-900 mb-5" style={{ fontFamily: "var(--font-display)" }}>
             Đăng nhập
           </h2>

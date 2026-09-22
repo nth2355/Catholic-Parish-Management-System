@@ -77,6 +77,14 @@ export async function listClasses(req: Request, res: Response) {
       include: {
         academicYear: true,
         _count: { select: { enrollments: true } },
+        assignments: {
+          where: { status: "ACTIVE" },
+          include: {
+            catechist: {
+              select: { id: true, fullName: true, baptismalName: true },
+            },
+          },
+        },
       },
     });
     return res.json({ success: true, data: classes });

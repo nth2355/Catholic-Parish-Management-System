@@ -1,5 +1,10 @@
 import { Router } from "express";
 import {
+  createAssignment,
+  deleteAssignment,
+  listAssignments,
+} from "../controllers/assignment.controller.js";
+import {
   createAcademicYear,
   createClass,
   deleteClass,
@@ -37,6 +42,13 @@ router.delete(
   "/:classId/students/:studentId",
   requireRole("ADMIN"),
   removeEnrollment,
+);
+router.get("/:classId/assignments", listAssignments);
+router.post("/:classId/assignments", requireRole("ADMIN"), createAssignment);
+router.delete(
+  "/:classId/assignments/:assignmentId",
+  requireRole("ADMIN"),
+  deleteAssignment,
 );
 
 export default router;
