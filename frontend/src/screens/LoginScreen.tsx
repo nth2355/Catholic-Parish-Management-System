@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Button, Input } from "../components/ui";
+import parishLogo from "../../assets/images/logoGiaoxuSaNam.jpg";
 import type { UserRole } from "../App";
+import { Button, Input } from "../components/ui";
 
 export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => void }) {
   const [email, setEmail] = useState("");
@@ -26,19 +27,21 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
       <div className="relative w-full max-w-sm">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
+          <p className="text-sm italic text-warm-600 leading-relaxed mb-4">
+            "Lời Chúa là ngọn đèn soi cho con bước, là ánh sáng chỉ đường con đi."* — (Tv 119, 105)
+          </p>
           <div className="inline-flex items-center justify-center w-14 h-14 bg-navy-900 rounded-2xl shadow-md mb-4">
-            {/* Minimal cross */}
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <line x1="12" y1="3" x2="12" y2="21" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-              <line x1="5" y1="9" x2="19" y2="9" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-              <line x1="8" y1="21" x2="16" y2="21" stroke="#C9973A" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            <img
+              src={parishLogo}
+              alt="Logo Giáo xứ Sa Nam"
+              className="w-full h-full object-contain rounded-2xl"
+            />
           </div>
           <h1 className="text-2xl font-bold text-navy-900" style={{ fontFamily: "var(--font-display)" }}>
-            Giáo Lý Viên
+            Sổ Tay Giáo Lý
           </h1>
           <p className="text-sm text-warm-500 mt-1">Hệ thống quản lý giáo lý</p>
-          <p className="text-xs text-warm-400 mt-0.5">Giáo xứ • Mùa vụ 2024–2025</p>
+          <p className="text-xs text-warm-400 mt-0.5">Giáo xứ Sa Nam</p>
         </div>
 
         {/* Card */}
@@ -107,8 +110,12 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
         </div>
 
         <p className="text-center text-xs text-warm-400 mt-6">
-          © 2025 Giáo Xứ. Hệ thống nội bộ.
+          © 2025 Giáo Xứ Sa Nam. Hệ thống nội bộ.
         </p>
+        <p className="text-center text-xs text-warm-300 mt-6">
+          © Developed by Ven. Nguyen Thanh Dat.
+        </p>
+        
       </div>
     </div>
   );
