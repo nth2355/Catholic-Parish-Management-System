@@ -1,4 +1,9 @@
 {
+  "title": "Sổ Tay Giáo Lý xứ Sa Nam",
+  "language": "vi",
+  "icons": {
+    "icon": "/assets/images/logoGiaoxuSaNam.jpg"
+  },
   "description": "Manage catechism classes and student attendance efficiently with a user-friendly interface designed for parish admins and catechists, enhancing educational workflows.",
   "robots": {
     "index": false

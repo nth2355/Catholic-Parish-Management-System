@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, ReactNode } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 
 // ─── Badge ───────────────────────────────────────────────────────────────────
 type BadgeVariant = "default" | "success" | "warning" | "danger" | "gold" | "navy" | "muted";
@@ -67,7 +67,7 @@ export function Button({ variant = "primary", size = "md", children, className =
 }
 
 // ─── Input ───────────────────────────────────────────────────────────────────
-export function Input({ label, placeholder, type = "text", value, onChange, icon, error, className = "" }: {
+export function Input({ label, placeholder, type = "text", value, onChange, icon, error, required = false, className = "" }: {
   label?: string;
   placeholder?: string;
   type?: string;
@@ -75,11 +75,12 @@ export function Input({ label, placeholder, type = "text", value, onChange, icon
   onChange?: (v: string) => void;
   icon?: ReactNode;
   error?: string;
+  required?: boolean;
   className?: string;
 }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      {label && <label className="text-sm font-medium text-warm-700">{label}</label>}
+      {label && <label className="text-sm font-medium text-warm-700">{label}{required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}</label>}
       <div className="relative">
         {icon && (
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-warm-400">
@@ -90,6 +91,7 @@ export function Input({ label, placeholder, type = "text", value, onChange, icon
           type={type}
           value={value}
           onChange={e => onChange?.(e.target.value)}
+          required={required}
           placeholder={placeholder}
           className={`w-full rounded-lg border bg-white text-sm text-warm-900 placeholder:text-warm-400
             px-3 py-2.5 ${icon ? "pl-9" : ""}
@@ -103,21 +105,23 @@ export function Input({ label, placeholder, type = "text", value, onChange, icon
 }
 
 // ─── Select ──────────────────────────────────────────────────────────────────
-export function Select({ label, value, onChange, options, placeholder, className = "" }: {
+export function Select({ label, value, onChange, options, placeholder, required = false, className = "" }: {
   label?: string;
   value?: string;
   onChange?: (v: string) => void;
   options: { value: string; label: string }[];
   placeholder?: string;
+  required?: boolean;
   className?: string;
 }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      {label && <label className="text-sm font-medium text-warm-700">{label}</label>}
+      {label && <label className="text-sm font-medium text-warm-700">{label}{required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}</label>}
       <div className="relative">
         <select
           value={value}
           onChange={e => onChange?.(e.target.value)}
+          required={required}
           className="w-full appearance-none rounded-lg border border-warm-200 bg-white px-3 py-2.5 pr-8 text-sm text-warm-900
             focus:border-navy-700 focus:outline-none focus:ring-2 focus:ring-navy-100 cursor-pointer"
         >

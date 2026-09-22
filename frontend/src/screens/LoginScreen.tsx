@@ -7,13 +7,38 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (role: UserRole) => {
+  const handleSubmit = async () => {
+    setError("");
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:3000/api"}/auth/login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        },
+      );
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Đăng nhập thất bại");
+      }
+
+      const role = result.data.user.role.toLowerCase() as UserRole;
+      const storage = rememberLogin ? localStorage : sessionStorage;
+      storage.setItem("authToken", result.data.token);
+      storage.setItem("authUser", JSON.stringify(result.data.user));
       onLogin(role);
-    }, 800);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Đăng nhập thất bại");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -66,9 +91,16 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
               onChange={setPassword}
             />
 
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
             <div className="flex items-center justify-between text-sm">
               <label className="flex items-center gap-2 cursor-pointer text-warm-600">
-                <input type="checkbox" className="rounded border-warm-300 text-navy-900" />
+                <input
+                  type="checkbox"
+                  checked={rememberLogin}
+                  onChange={(event) => setRememberLogin(event.target.checked)}
+                  className="rounded border-warm-300 text-navy-900"
+                />
                 Ghi nhớ đăng nhập
               </label>
               <button className="text-navy-700 hover:text-navy-900 font-medium cursor-pointer">
@@ -80,7 +112,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
               variant="primary"
               size="lg"
               className="w-full mt-1"
-              onClick={() => handleSubmit("admin")}
+              onClick={handleSubmit}
               disabled={loading}
             >
               {loading ? "Đang đăng nhập..." : "Đăng nhập"}
@@ -92,14 +124,22 @@ export default function LoginScreen({ onLogin }: { onLogin: (role: UserRole) => 
             <p className="text-xs text-warm-400 text-center mb-3">Tài khoản demo</p>
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => handleSubmit("admin")}
+                onClick={() => {
+                  setEmail("admin@parish.local");
+                  setPassword("Admin@123456");
+                  setError("");
+                }}
                 className="flex flex-col items-center gap-1 p-3 rounded-lg border border-warm-200 hover:border-navy-200 hover:bg-navy-50 cursor-pointer text-left"
               >
                 <span className="text-xs font-semibold text-navy-800">Ban Điều Hành</span>
                 <span className="text-xs text-warm-400">Admin</span>
               </button>
               <button
-                onClick={() => handleSubmit("catechist")}
+                onClick={() => {
+                  setEmail("");
+                  setPassword("");
+                  setError("Nhập tài khoản giáo lý viên để đăng nhập.");
+                }}
                 className="flex flex-col items-center gap-1 p-3 rounded-lg border border-warm-200 hover:border-gold-200 hover:bg-gold-50 cursor-pointer text-left"
               >
                 <span className="text-xs font-semibold text-gold-700">Giáo Lý Viên</span>
