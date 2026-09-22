@@ -18,6 +18,7 @@ import {
     Toast,
     TrashIcon,
 } from "../../components/ui";
+import MobileAttendance from "../catechist/MobileAttendance";
 
 type SessionStatus = "UPCOMING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type ClassOption = { id: string; name: string };
@@ -55,6 +56,7 @@ export default function SessionManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [attendanceSessionId, setAttendanceSessionId] = useState<string | null>(null);
 
   const showToast = (message: string, type: "success" | "error" = "success") => { setToast({ message, type }); setTimeout(() => setToast(null), 3000); };
   const request = async (path: string, options: RequestInit = {}) => {
@@ -131,7 +133,7 @@ export default function SessionManagement() {
           <span className="text-warm-500 text-sm">{session.room || "-"}</span>,
           <span className="text-warm-500 text-sm">{session._count.attendances}</span>,
           <Badge variant={session.status === "COMPLETED" ? "success" : session.status === "IN_PROGRESS" ? "navy" : session.status === "CANCELLED" ? "danger" : "muted"}>{statusLabels[session.status]}</Badge>,
-          <Dropdown dropUp trigger={<button className="text-warm-400 hover:text-warm-700 p-1 rounded cursor-pointer"><span className="text-lg leading-none">···</span></button>} items={[{ label: "Điểm danh", icon: <CheckCircleIcon size={14} />, onClick: () => showToast("Chức năng điểm danh sẽ thực hiện ở bước tiếp theo") }, { label: "Chỉnh sửa", icon: <EditIcon />, onClick: () => void openEdit(session) }, { label: "Xóa", icon: <TrashIcon />, danger: true, onClick: () => void deleteSession(session) }]} />,
+          <Dropdown dropUp trigger={<button className="text-warm-400 hover:text-warm-700 p-1 rounded cursor-pointer"><span className="text-lg leading-none">···</span></button>} items={[{ label: "Điểm danh", icon: <CheckCircleIcon size={14} />, onClick: () => setAttendanceSessionId(session.id) }, { label: "Chỉnh sửa", icon: <EditIcon />, onClick: () => void openEdit(session) }, { label: "Xóa", icon: <TrashIcon />, danger: true, onClick: () => void deleteSession(session) }]} />,
         ])} />}
         <div className="px-4 py-3 border-t border-warm-100"><p className="text-xs text-warm-400">Hiển thị {sessions.length} buổi học</p></div>
       </Card>
@@ -146,6 +148,9 @@ export default function SessionManagement() {
           <Input label="Giờ bắt đầu" type="time" value={form.startTime} onChange={(value) => updateForm("startTime", value)} />
           <Input label="Giờ kết thúc" type="time" value={form.endTime} onChange={(value) => updateForm("endTime", value)} />
         </div>
+      </Dialog>
+      <Dialog open={attendanceSessionId !== null} onClose={() => setAttendanceSessionId(null)} title="Điểm danh buổi học">
+        {attendanceSessionId && <MobileAttendance sessionId={attendanceSessionId} onSaved={() => { setAttendanceSessionId(null); void loadSessions(); }} />}
       </Dialog>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

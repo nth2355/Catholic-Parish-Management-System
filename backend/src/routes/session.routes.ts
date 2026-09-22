@@ -1,5 +1,9 @@
 import { Router } from "express";
 import {
+  listSessionAttendance,
+  saveSessionAttendance,
+} from "../controllers/attendance.controller.js";
+import {
   createSession,
   deleteSession,
   getSession,
@@ -16,5 +20,7 @@ router.get("/:id", getSession);
 router.post("/", requireRole("ADMIN"), createSession);
 router.patch("/:id", requireRole("ADMIN"), updateSession);
 router.delete("/:id", requireRole("ADMIN"), deleteSession);
+router.get("/:sessionId/attendance", listSessionAttendance);
+router.put("/:sessionId/attendance", saveSessionAttendance);
 
 export default router;
