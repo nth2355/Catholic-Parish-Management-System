@@ -417,12 +417,35 @@ export function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md"
 }
 
 // ─── Dropdown ────────────────────────────────────────────────────────────────
-export function Dropdown({ trigger, items }: {
+export function Dropdown({ trigger, items, dropUp = false }: {
   trigger: ReactNode;
   items: { label: string; icon?: ReactNode; onClick?: () => void; danger?: boolean }[];
+  dropUp?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const ref = useRef<HTMLDivElement>(null);
+
+  const toggleMenu = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    const triggerRect = ref.current?.getBoundingClientRect();
+    if (triggerRect) {
+      const menuHeight = Math.min(items.length * 40 + 12, 280);
+      const canOpenAbove = triggerRect.top >= menuHeight + 8;
+      const top = dropUp && canOpenAbove
+        ? triggerRect.top - menuHeight - 4
+        : triggerRect.bottom + 4;
+      setMenuPosition({
+        top: Math.max(8, Math.min(top, window.innerHeight - menuHeight - 8)),
+        right: Math.max(8, window.innerWidth - triggerRect.right),
+      });
+    }
+    setOpen(true);
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -434,9 +457,12 @@ export function Dropdown({ trigger, items }: {
 
   return (
     <div className="relative" ref={ref}>
-      <div onClick={() => setOpen(!open)} className="cursor-pointer">{trigger}</div>
+      <div onClick={toggleMenu} className="cursor-pointer">{trigger}</div>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-warm-200 rounded-xl shadow-lg py-1.5 min-w-44">
+        <div
+          className="fixed z-[60] bg-white border border-warm-200 rounded-xl shadow-lg py-1.5 min-w-44 max-h-72 overflow-y-auto"
+          style={{ top: menuPosition.top, right: menuPosition.right }}
+        >
           {items.map((item, i) => (
             <button
               key={i}

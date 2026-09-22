@@ -1,227 +1,383 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Card, Button, SearchInput, Badge, Table, Dialog, Input, Select,
-  Avatar, SectionHeader, StatCard, Dropdown, EditIcon, TrashIcon, PlusIcon,
-  Toast, BookOpenIcon, UsersIcon, ProgressBar,
+    Badge,
+    BookOpenIcon,
+    Button,
+    Card,
+    Dialog,
+    Dropdown,
+    EditIcon,
+    EmptyState,
+    Input,
+    PlusIcon,
+    SearchInput,
+    SectionHeader,
+    Select,
+    Table,
+    Toast,
+    TrashIcon,
 } from "../../components/ui";
 
-const CLASSES = [
-  { id: 1, name: "Lớp Xưng Tội 1", level: "Xưng Tội", catechist: "Chị Maria Nguyễn", students: 26, capacity: 30, attendance: 96, day: "Chủ nhật 8:00", room: "Phòng A1" },
-  { id: 2, name: "Lớp Xưng Tội 2", level: "Xưng Tội", catechist: "Chưa phân công", students: 24, capacity: 30, attendance: 88, day: "Chủ nhật 9:30", room: "Phòng A2" },
-  { id: 3, name: "Lớp Thêm Sức A", level: "Thêm Sức", catechist: "Anh Giuse Trần", students: 20, capacity: 25, attendance: 94, day: "Chủ nhật 8:00", room: "Phòng B1" },
-  { id: 4, name: "Lớp Thêm Sức B", level: "Thêm Sức", catechist: "Chị Têrêxa Phạm", students: 22, capacity: 25, attendance: 79, day: "Thứ 7 14:00", room: "Phòng B2" },
-  { id: 5, name: "Lớp Rước Lễ 1", level: "Rước Lễ", catechist: "Chị Anna Lê", students: 25, capacity: 30, attendance: 95, day: "Chủ nhật 8:00", room: "Phòng C1" },
-  { id: 6, name: "Lớp Rước Lễ 2", level: "Rước Lễ", catechist: "Anh Phêrô Võ", students: 22, capacity: 30, attendance: 91, day: "Chủ nhật 9:30", room: "Phòng C2" },
-  { id: 7, name: "Lớp Tìm Hiểu A", level: "Tìm Hiểu", catechist: "Anh Tôma Đặng", students: 18, capacity: 25, attendance: 85, day: "Thứ 7 14:00", room: "Hội trường" },
-  { id: 8, name: "Lớp Tìm Hiểu B", level: "Tìm Hiểu", catechist: "Chị Cecilia Bùi", students: 19, capacity: 25, attendance: 89, day: "Chủ nhật 8:00", room: "Hội trường" },
-];
+type ClassLevel = "TIM_HIEU" | "XUNG_TOI" | "RUOC_LE" | "THEM_SUC";
+type ClassStatus = "ACTIVE" | "PAUSED" | "COMPLETED";
 
-const levelColors: Record<string, "navy" | "gold" | "success" | "default"> = {
-  "Xưng Tội": "navy",
-  "Thêm Sức": "gold",
-  "Rước Lễ": "success",
-  "Tìm Hiểu": "default",
+type AcademicYear = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
 };
 
+type ParishClass = {
+  id: string;
+  name: string;
+  level: ClassLevel;
+  capacity: number;
+  room: string | null;
+  dayOfWeek: number | null;
+  startTime: string | null;
+  endTime: string | null;
+  status: ClassStatus;
+  academicYearId: string;
+  academicYear: AcademicYear;
+  _count: { enrollments: number };
+};
+
+type ClassForm = {
+  name: string;
+  level: ClassLevel;
+  capacity: string;
+  room: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  status: ClassStatus;
+  academicYearId: string;
+};
+
+type YearForm = { name: string; startDate: string; endDate: string };
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const levelLabels: Record<ClassLevel, string> = {
+  TIM_HIEU: "Tìm Hiểu",
+  XUNG_TOI: "Xưng Tội",
+  RUOC_LE: "Rước Lễ",
+  THEM_SUC: "Thêm Sức",
+};
+const dayLabels = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+const emptyClass: ClassForm = {
+  name: "",
+  level: "TIM_HIEU",
+  capacity: "30",
+  room: "",
+  dayOfWeek: "",
+  startTime: "",
+  endTime: "",
+  status: "ACTIVE",
+  academicYearId: "",
+};
+const emptyYear: YearForm = { name: "", startDate: "", endDate: "" };
+
+function getToken() {
+  return localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+}
+
+function classToForm(classRecord: ParishClass): ClassForm {
+  return {
+    name: classRecord.name,
+    level: classRecord.level,
+    capacity: String(classRecord.capacity),
+    room: classRecord.room || "",
+    dayOfWeek: classRecord.dayOfWeek === null ? "" : String(classRecord.dayOfWeek),
+    startTime: classRecord.startTime || "",
+    endTime: classRecord.endTime || "",
+    status: classRecord.status,
+    academicYearId: classRecord.academicYearId,
+  };
+}
+
 export default function ClassManagement() {
+  const [classes, setClasses] = useState<ParishClass[]>([]);
+  const [years, setYears] = useState<AcademicYear[]>([]);
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
-  const [showAdd, setShowAdd] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const [view, setView] = useState<"table" | "grid">("table");
+  const [yearFilter, setYearFilter] = useState("");
+  const [showClassDialog, setShowClassDialog] = useState(false);
+  const [showYearDialog, setShowYearDialog] = useState(false);
+  const [showRosterDialog, setShowRosterDialog] = useState(false);
+  const [editingClass, setEditingClass] = useState<ParishClass | null>(null);
+  const [rosterClass, setRosterClass] = useState<ParishClass | null>(null);
+  const [roster, setRoster] = useState<{ id: string; status: string; student: { id: string; fullName: string; baptismalName: string | null } }[]>([]);
+  const [availableStudents, setAvailableStudents] = useState<{ id: string; fullName: string; baptismalName: string | null }[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [classForm, setClassForm] = useState<ClassForm>(emptyClass);
+  const [yearForm, setYearForm] = useState<YearForm>(emptyYear);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
-  const filtered = CLASSES.filter(c => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
-    const matchLevel = !levelFilter || c.level === levelFilter;
-    return matchSearch && matchLevel;
-  });
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const request = async (path: string, options: RequestInit = {}) => {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+        ...options.headers,
+      },
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Không thể thực hiện thao tác");
+    return result;
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (levelFilter) params.set("level", levelFilter);
+      if (yearFilter) params.set("academicYearId", yearFilter);
+      const [yearResult, classResult] = await Promise.all([
+        request("/classes/academic-years"),
+        request(`/classes?${params}`),
+      ]);
+      setYears(yearResult.data);
+      setClasses(classResult.data);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể tải dữ liệu lớp học", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadData();
+  }, [search, levelFilter, yearFilter]);
+
+  const openCreateClass = () => {
+    setEditingClass(null);
+    setClassForm({ ...emptyClass, academicYearId: yearFilter || years[0]?.id || "" });
+    setShowClassDialog(true);
+  };
+
+  const openEditClass = (classRecord: ParishClass) => {
+    setEditingClass(classRecord);
+    setClassForm(classToForm(classRecord));
+    setShowClassDialog(true);
+  };
+
+  const updateClassForm = (field: keyof ClassForm, value: string) => {
+    setClassForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const saveClass = async () => {
+    if (!classForm.name.trim() || !classForm.academicYearId) {
+      showToast("Vui lòng nhập tên lớp và chọn năm học", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        ...classForm,
+        capacity: Number(classForm.capacity),
+        dayOfWeek: classForm.dayOfWeek === "" ? null : Number(classForm.dayOfWeek),
+        room: classForm.room || null,
+        startTime: classForm.startTime || null,
+        endTime: classForm.endTime || null,
+      };
+      await request(`/classes${editingClass ? `/${editingClass.id}` : ""}`, {
+        method: editingClass ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      });
+      setShowClassDialog(false);
+      showToast(editingClass ? "Đã cập nhật lớp học" : "Đã tạo lớp học");
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể lưu lớp học", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const createYear = async () => {
+    if (!yearForm.name || !yearForm.startDate || !yearForm.endDate) {
+      showToast("Vui lòng nhập đủ thông tin năm học", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await request("/classes/academic-years", { method: "POST", body: JSON.stringify(yearForm) });
+      setYears((current) => [result.data, ...current]);
+      setClassForm((current) => ({ ...current, academicYearId: result.data.id }));
+      setYearForm(emptyYear);
+      setShowYearDialog(false);
+      showToast("Đã tạo năm học");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể tạo năm học", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteClass = async (classRecord: ParishClass) => {
+    if (!window.confirm(`Xóa lớp ${classRecord.name}?`)) return;
+    try {
+      await request(`/classes/${classRecord.id}`, { method: "DELETE" });
+      showToast("Đã xóa lớp học");
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể xóa lớp học", "error");
+    }
+  };
+
+  const openRoster = async (classRecord: ParishClass) => {
+    setRosterClass(classRecord);
+    setShowRosterDialog(true);
+    setRosterLoading(true);
+    try {
+      const [rosterResult, studentResult] = await Promise.all([
+        request(`/classes/${classRecord.id}/students`),
+        request("/students?limit=100&status=ACTIVE"),
+      ]);
+      setRoster(rosterResult.data);
+      setAvailableStudents(studentResult.data);
+      setSelectedStudentIds([]);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể tải danh sách lớp", "error");
+    } finally {
+      setRosterLoading(false);
+    }
+  };
+
+  const addStudentsToClass = async () => {
+    if (!rosterClass || selectedStudentIds.length === 0) return;
+    try {
+      await Promise.all(selectedStudentIds.map((studentId) => request(`/classes/${rosterClass.id}/students`, {
+        method: "POST",
+        body: JSON.stringify({ studentId }),
+      })));
+      showToast(`Đã thêm ${selectedStudentIds.length} học sinh vào lớp`);
+      await openRoster(rosterClass);
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể thêm học sinh vào lớp", "error");
+    }
+  };
+
+  const removeStudentFromClass = async (studentId: string) => {
+    if (!rosterClass || !window.confirm("Xóa học sinh này khỏi lớp?")) return;
+    try {
+      await request(`/classes/${rosterClass.id}/students/${studentId}`, { method: "DELETE" });
+      showToast("Đã xóa học sinh khỏi lớp");
+      await openRoster(rosterClass);
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Không thể xóa học sinh khỏi lớp", "error");
+    }
+  };
 
   return (
     <div className="p-6 space-y-5 max-w-6xl mx-auto">
       <SectionHeader
         title="Quản lý lớp học"
-        subtitle={`${CLASSES.length} lớp • 4 khối`}
-        action={
-          <Button variant="primary" onClick={() => setShowAdd(true)}>
-            <PlusIcon size={14} /> Tạo lớp mới
-          </Button>
-        }
+        subtitle={`${classes.length} lớp học`}
+        action={<Button variant="primary" onClick={openCreateClass}><PlusIcon size={14} /> Tạo lớp mới</Button>}
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Tổng số lớp" value="12" icon={<BookOpenIcon size={18} />} color="navy" />
-        <StatCard label="Đang hoạt động" value="12" sub="0 tạm dừng" color="green" icon={<BookOpenIcon size={18} />} />
-        <StatCard label="Tổng học sinh" value="176" sub="/ 220 chỗ" color="gold" icon={<UsersIcon size={18} />} />
-        <StatCard label="Lớp chưa phân công GLV" value="1" color="red" icon={<UsersIcon size={18} />} />
-      </div>
-
       <Card>
-        {/* Toolbar */}
         <div className="p-4 border-b border-warm-100 flex flex-wrap gap-3 items-center">
-          <div className="flex-1 min-w-44">
-            <SearchInput value={search} onChange={setSearch} placeholder="Tìm lớp học..." />
-          </div>
-          <Select
-            value={levelFilter}
-            onChange={setLevelFilter}
-            placeholder="Tất cả khối"
-            options={[
-              { value: "Xưng Tội", label: "Xưng Tội" },
-              { value: "Thêm Sức", label: "Thêm Sức" },
-              { value: "Rước Lễ", label: "Rước Lễ" },
-              { value: "Tìm Hiểu", label: "Tìm Hiểu" },
-            ]}
-            className="w-36"
-          />
-          <div className="flex gap-1 bg-warm-100 rounded-lg p-1">
-            <button
-              onClick={() => setView("table")}
-              className={`px-3 py-1 text-xs font-medium rounded cursor-pointer ${view === "table" ? "bg-white text-warm-900 shadow-sm" : "text-warm-500"}`}
-            >
-              Bảng
-            </button>
-            <button
-              onClick={() => setView("grid")}
-              className={`px-3 py-1 text-xs font-medium rounded cursor-pointer ${view === "grid" ? "bg-white text-warm-900 shadow-sm" : "text-warm-500"}`}
-            >
-              Lưới
-            </button>
-          </div>
+          <div className="flex-1 min-w-44"><SearchInput value={search} onChange={setSearch} placeholder="Tìm lớp học..." /></div>
+          <Select value={levelFilter} onChange={setLevelFilter} placeholder="Tất cả khối" options={Object.entries(levelLabels).map(([value, label]) => ({ value, label }))} className="w-36" />
+          <Select value={yearFilter} onChange={setYearFilter} placeholder="Tất cả năm học" options={years.map((year) => ({ value: year.id, label: year.name }))} className="w-44" />
+          <Button variant="secondary" size="sm" onClick={() => setShowYearDialog(true)}>Tạo năm học</Button>
         </div>
 
-        {view === "table" ? (
+        {loading ? (
+          <div className="py-16 text-center text-sm text-warm-400">Đang tải danh sách lớp...</div>
+        ) : classes.length === 0 ? (
+          <EmptyState icon={<BookOpenIcon size={40} />} title="Chưa có lớp học" description={years.length ? "Tạo lớp học đầu tiên cho năm học" : "Hãy tạo năm học trước khi tạo lớp"} />
+        ) : (
           <Table
-            headers={["Lớp học", "Khối", "Giáo lý viên", "Học sinh", "Điểm danh", "Lịch học", "Phòng", ""]}
-            rows={filtered.map(c => [
-              <span className="font-medium text-warm-900">{c.name}</span>,
-              <Badge variant={levelColors[c.level]}>{c.level}</Badge>,
-              <div className="flex items-center gap-2">
-                {c.catechist !== "Chưa phân công" ? (
-                  <>
-                    <Avatar name={c.catechist} size="sm" />
-                    <span className="text-warm-700 text-xs">{c.catechist}</span>
-                  </>
-                ) : (
-                  <Badge variant="warning">Chưa phân công</Badge>
-                )}
-              </div>,
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{c.students}</span>
-                <span className="text-warm-400 text-xs">/ {c.capacity}</span>
-              </div>,
-              <div className="flex items-center gap-2 min-w-24">
-                <div className="flex-1 h-1.5 bg-warm-100 rounded-full">
-                  <div
-                    className={`h-full rounded-full ${c.attendance >= 90 ? "bg-emerald-500" : c.attendance >= 80 ? "bg-navy-700" : "bg-red-400"}`}
-                    style={{ width: `${c.attendance}%` }}
-                  />
-                </div>
-                <span className="text-xs text-warm-500">{c.attendance}%</span>
-              </div>,
-              <span className="text-warm-500 text-xs">{c.day}</span>,
-              <span className="text-warm-500 text-xs">{c.room}</span>,
-              <Dropdown
-                trigger={
-                  <button className="text-warm-400 hover:text-warm-700 p-1 rounded cursor-pointer">
-                    <span className="text-lg leading-none">···</span>
-                  </button>
-                }
-                items={[
-                  { label: "Xem danh sách lớp", onClick: () => showToast("Mở danh sách lớp...") },
-                  { label: "Chỉnh sửa", icon: <EditIcon />, onClick: () => showToast("Mở form chỉnh sửa...") },
-                  { label: "Xóa lớp", icon: <TrashIcon />, danger: true, onClick: () => showToast("Đã xóa lớp") },
-                ]}
-              />,
+            headers={["Lớp học", "Khối", "Năm học", "Học sinh", "Lịch học", "Phòng", "Trạng thái", ""]}
+            rows={classes.map((classRecord) => [
+              <span className="font-medium text-warm-900">{classRecord.name}</span>,
+              <Badge variant={classRecord.level === "THEM_SUC" ? "gold" : classRecord.level === "RUOC_LE" ? "success" : "navy"}>{levelLabels[classRecord.level]}</Badge>,
+              <span className="text-xs text-warm-500">{classRecord.academicYear.name}</span>,
+              <span className="text-warm-700">{classRecord._count.enrollments} / {classRecord.capacity}</span>,
+              <span className="text-xs text-warm-500">{classRecord.dayOfWeek === null ? "-" : `${dayLabels[classRecord.dayOfWeek]} ${classRecord.startTime || ""}`}</span>,
+              <span className="text-xs text-warm-500">{classRecord.room || "-"}</span>,
+              <Badge variant={classRecord.status === "ACTIVE" ? "success" : classRecord.status === "PAUSED" ? "warning" : "muted"}>{classRecord.status === "ACTIVE" ? "Đang hoạt động" : classRecord.status === "PAUSED" ? "Tạm dừng" : "Đã hoàn thành"}</Badge>,
+              <Dropdown dropUp trigger={<button className="text-warm-400 hover:text-warm-700 p-1 rounded cursor-pointer"><span className="text-lg leading-none">···</span></button>} items={[{ label: "Danh sách học sinh", onClick: () => void openRoster(classRecord) }, { label: "Chỉnh sửa", icon: <EditIcon />, onClick: () => openEditClass(classRecord) }, { label: "Xóa lớp", icon: <TrashIcon />, danger: true, onClick: () => void deleteClass(classRecord) }]} />,
             ])}
           />
-        ) : (
-          <div className="p-4 grid grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(c => (
-              <div
-                key={c.id}
-                className="border border-warm-200 rounded-xl p-4 hover:border-navy-200 hover:shadow-sm cursor-pointer"
-                onClick={() => showToast(`Mở chi tiết ${c.name}`)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="font-semibold text-warm-900 text-sm" style={{ fontFamily: "var(--font-display)" }}>{c.name}</p>
-                    <Badge variant={levelColors[c.level]} className="mt-1">{c.level}</Badge>
-                  </div>
-                  <div className="w-9 h-9 bg-navy-50 rounded-lg flex items-center justify-center">
-                    <BookOpenIcon size={16} />
-                  </div>
-                </div>
-                <ProgressBar value={c.students} max={c.capacity} showPercent label={`${c.students}/${c.capacity} học sinh`} color="navy" />
-                <div className="mt-3 flex items-center gap-2">
-                  {c.catechist !== "Chưa phân công" ? (
-                    <>
-                      <Avatar name={c.catechist} size="sm" />
-                      <span className="text-xs text-warm-500 truncate">{c.catechist}</span>
-                    </>
-                  ) : (
-                    <Badge variant="warning">Chưa phân công GLV</Badge>
-                  )}
-                </div>
-                <p className="text-xs text-warm-400 mt-2">{c.day} · {c.room}</p>
-              </div>
-            ))}
-          </div>
         )}
+        <div className="px-4 py-3 border-t border-warm-100"><p className="text-xs text-warm-400">Hiển thị {classes.length} lớp học</p></div>
       </Card>
 
-      {/* Add Class Dialog */}
-      <Dialog
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        title="Tạo lớp học mới"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowAdd(false)}>Hủy</Button>
-            <Button variant="primary" onClick={() => { setShowAdd(false); showToast("Đã tạo lớp học thành công!"); }}>
-              Tạo lớp
-            </Button>
-          </>
-        }
-      >
+      <Dialog open={showClassDialog} onClose={() => setShowClassDialog(false)} title={editingClass ? "Chỉnh sửa lớp học" : "Tạo lớp học mới"} footer={<><Button variant="secondary" onClick={() => setShowClassDialog(false)}>Hủy</Button><Button variant="primary" onClick={() => void saveClass()} disabled={saving}>{saving ? "Đang lưu..." : "Lưu lớp học"}</Button></>}>
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Tên lớp" placeholder="Lớp Xưng Tội 1" className="col-span-2" />
-          <Select
-            label="Khối"
-            placeholder="Chọn khối"
-            options={[
-              { value: "xt", label: "Xưng Tội" },
-              { value: "ts", label: "Thêm Sức" },
-              { value: "rl", label: "Rước Lễ" },
-              { value: "th", label: "Tìm Hiểu" },
-            ]}
-          />
-          <Input label="Sĩ số tối đa" type="number" placeholder="30" />
-          <Select
-            label="Giáo lý viên"
-            placeholder="Chọn GLV"
-            options={[
-              { value: "1", label: "Chị Maria Nguyễn" },
-              { value: "2", label: "Anh Giuse Trần" },
-              { value: "3", label: "Chị Anna Lê" },
-            ]}
-          />
-          <Input label="Phòng học" placeholder="Phòng A1" />
-          <Select
-            label="Ngày học"
-            placeholder="Chọn ngày"
-            options={[
-              { value: "cn", label: "Chủ nhật" },
-              { value: "t7", label: "Thứ 7" },
-            ]}
-          />
-          <Input label="Giờ học" type="time" value="08:00" />
+          <Input label="Tên lớp" value={classForm.name} onChange={(value) => updateClassForm("name", value)} className="col-span-2" />
+          <Select label="Khối" value={classForm.level} onChange={(value) => updateClassForm("level", value)} options={Object.entries(levelLabels).map(([value, label]) => ({ value, label }))} />
+          <Select label="Năm học" value={classForm.academicYearId} onChange={(value) => updateClassForm("academicYearId", value)} options={years.map((year) => ({ value: year.id, label: year.name }))} placeholder="Chọn năm học" />
+          <Input label="Sĩ số tối đa" type="number" value={classForm.capacity} onChange={(value) => updateClassForm("capacity", value)} />
+          <Input label="Phòng học (tùy chọn)" value={classForm.room} onChange={(value) => updateClassForm("room", value)} />
+          <Select label="Ngày học (tùy chọn)" value={classForm.dayOfWeek} onChange={(value) => updateClassForm("dayOfWeek", value)} options={dayLabels.map((label, value) => ({ value: String(value), label }))} placeholder="Chọn ngày" />
+          <Input label="Giờ bắt đầu (tùy chọn)" type="time" value={classForm.startTime} onChange={(value) => updateClassForm("startTime", value)} />
+          <Input label="Giờ kết thúc (tùy chọn)" type="time" value={classForm.endTime} onChange={(value) => updateClassForm("endTime", value)} />
+          <Select label="Trạng thái" value={classForm.status} onChange={(value) => updateClassForm("status", value)} options={[{ value: "ACTIVE", label: "Đang hoạt động" }, { value: "PAUSED", label: "Tạm dừng" }, { value: "COMPLETED", label: "Đã hoàn thành" }]} />
         </div>
       </Dialog>
 
-      {toast && <Toast message={toast} type="success" onClose={() => setToast(null)} />}
+      <Dialog open={showYearDialog} onClose={() => setShowYearDialog(false)} title="Tạo năm học" footer={<><Button variant="secondary" onClick={() => setShowYearDialog(false)}>Hủy</Button><Button variant="primary" onClick={() => void createYear()} disabled={saving}>{saving ? "Đang lưu..." : "Lưu năm học"}</Button></>}>
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Tên năm học" placeholder="2026–2027" value={yearForm.name} onChange={(value) => setYearForm((current) => ({ ...current, name: value }))} className="col-span-2" />
+          <Input label="Ngày bắt đầu" type="date" value={yearForm.startDate} onChange={(value) => setYearForm((current) => ({ ...current, startDate: value }))} />
+          <Input label="Ngày kết thúc" type="date" value={yearForm.endDate} onChange={(value) => setYearForm((current) => ({ ...current, endDate: value }))} />
+        </div>
+      </Dialog>
+
+      <Dialog open={showRosterDialog} onClose={() => setShowRosterDialog(false)} title={rosterClass ? `Học sinh - ${rosterClass.name}` : "Danh sách học sinh"}>
+        {rosterLoading ? (
+          <p className="py-8 text-center text-sm text-warm-400">Đang tải danh sách...</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-warm-700">Thêm học sinh</p>
+              <div className="max-h-48 overflow-y-auto border border-warm-200 rounded-lg divide-y divide-warm-100">
+                {availableStudents.filter((student) => !roster.some((item) => item.student.id === student.id)).map((student) => (
+                  <label key={student.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-warm-50">
+                    <input type="checkbox" checked={selectedStudentIds.includes(student.id)} onChange={(event) => setSelectedStudentIds((current) => event.target.checked ? [...current, student.id] : current.filter((id) => id !== student.id))} className="rounded border-warm-300 text-navy-900" />
+                    <span className="text-sm text-warm-800">{student.fullName}</span>
+                    {student.baptismalName && <span className="text-xs text-warm-400">{student.baptismalName}</span>}
+                  </label>
+                ))}
+                {availableStudents.filter((student) => !roster.some((item) => item.student.id === student.id)).length === 0 && <p className="px-3 py-4 text-sm text-warm-400">Không còn học sinh để thêm</p>}
+              </div>
+              <Button variant="primary" onClick={() => void addStudentsToClass()} disabled={selectedStudentIds.length === 0}>Thêm {selectedStudentIds.length || ""} học sinh</Button>
+            </div>
+            {roster.length === 0 ? (
+              <p className="py-8 text-center text-sm text-warm-400">Chưa có học sinh trong lớp</p>
+            ) : (
+              <div className="divide-y divide-warm-100 border border-warm-200 rounded-lg">
+                {roster.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between px-3 py-2.5">
+                    <div><p className="text-sm font-medium text-warm-900">{item.student.fullName}</p><p className="text-xs text-warm-500">{item.student.baptismalName || "-"}</p></div>
+                    <button className="text-xs text-red-600 hover:text-red-800 cursor-pointer" onClick={() => void removeStudentFromClass(item.student.id)}>Xóa</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Dialog>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

@@ -35,6 +35,7 @@ type Student = {
   guardianEmail: string | null;
   address: string | null;
   status: StudentStatus;
+  enrollments?: { class: { id: string; name: string } }[];
 };
 
 type StudentForm = {
@@ -259,7 +260,7 @@ export default function StudentManagement() {
               </div>,
               <span className="text-warm-500">{student.baptismalName || "-"}</span>,
               <span className="text-warm-500 text-xs">{formatDate(student.dateOfBirth)}</span>,
-              <span className="text-warm-400">-</span>,
+              <span className="text-warm-700">{student.enrollments?.[0]?.class.name || "-"}</span>,
               <Badge variant={student.status === "ACTIVE" ? "success" : student.status === "GRADUATED" ? "navy" : "warning"}>
                 {student.status === "ACTIVE" ? "Đang học" : student.status === "GRADUATED" ? "Đã tốt nghiệp" : "Tạm nghỉ"}
               </Badge>,

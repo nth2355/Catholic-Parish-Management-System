@@ -42,6 +42,13 @@ export async function listStudents(req: Request, res: Response) {
         orderBy: { fullName: "asc" },
         skip,
         take: limit,
+        include: {
+          enrollments: {
+            where: { status: "ACTIVE" },
+            include: { class: { select: { id: true, name: true } } },
+            take: 1,
+          },
+        },
       }),
       prisma.student.count({ where }),
     ]);
