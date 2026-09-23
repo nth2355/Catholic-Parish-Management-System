@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
+import type { AuthRequest } from "../middlewares/auth.middleware.js";
 import { prisma } from "../db/prisma.js";
 import { attendanceBatchSchema } from "../validator/attendance.validator.js";
+import { sessionTeachingScope } from "../utils/catechist-scope.js";
 
 function getSessionId(req: Request) {
   return typeof req.params.sessionId === "string"
@@ -8,7 +10,7 @@ function getSessionId(req: Request) {
     : undefined;
 }
 
-export async function listSessionAttendance(req: Request, res: Response) {
+export async function listSessionAttendance(req: AuthRequest, res: Response) {
   const sessionId = getSessionId(req);
   if (!sessionId)
     return res
@@ -16,8 +18,8 @@ export async function listSessionAttendance(req: Request, res: Response) {
       .json({ success: false, message: "Mã buổi học không hợp lệ" });
 
   try {
-    const session = await prisma.session.findUnique({
-      where: { id: sessionId },
+    const session = await prisma.session.findFirst({
+      where: { id: sessionId, ...sessionTeachingScope(req) },
       include: {
         class: {
           include: {
@@ -52,7 +54,7 @@ export async function listSessionAttendance(req: Request, res: Response) {
   }
 }
 
-export async function saveSessionAttendance(req: Request, res: Response) {
+export async function saveSessionAttendance(req: AuthRequest, res: Response) {
   const sessionId = getSessionId(req);
   const result = attendanceBatchSchema.safeParse(req.body);
   if (!sessionId)
@@ -69,8 +71,8 @@ export async function saveSessionAttendance(req: Request, res: Response) {
       });
 
   try {
-    const session = await prisma.session.findUnique({
-      where: { id: sessionId },
+    const session = await prisma.session.findFirst({
+      where: { id: sessionId, ...sessionTeachingScope(req) },
       include: {
         class: { include: { enrollments: { where: { status: "ACTIVE" } } } },
       },

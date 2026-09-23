@@ -10,6 +10,14 @@ export async function login(input: LoginInput) {
     where: {
       email: input.email,
     },
+    include: {
+      catechist: {
+        select: {
+          fullName: true,
+          baptismalName: true,
+        },
+      },
+    },
   });
 
   if (!user) {
@@ -61,6 +69,8 @@ export async function login(input: LoginInput) {
       id: user.id,
       email: user.email,
       role: user.role,
+      fullName: user.catechist?.fullName ?? null,
+      baptismalName: user.catechist?.baptismalName ?? null,
     },
   };
 }

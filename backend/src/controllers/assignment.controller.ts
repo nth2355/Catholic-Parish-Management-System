@@ -1,7 +1,9 @@
 import type { Request, Response } from "express";
+import type { AuthRequest } from "../middlewares/auth.middleware.js";
 import { prisma } from "../db/prisma.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { assignmentCreateSchema } from "../validator/assignment.validator.js";
+import { classTeachingScope } from "../utils/catechist-scope.js";
 
 function getClassId(req: Request) {
   return typeof req.params.classId === "string"
@@ -9,7 +11,7 @@ function getClassId(req: Request) {
     : undefined;
 }
 
-export async function listAssignments(req: Request, res: Response) {
+export async function listAssignments(req: AuthRequest, res: Response) {
   const classId = getClassId(req);
   if (!classId)
     return res
@@ -17,7 +19,7 @@ export async function listAssignments(req: Request, res: Response) {
       .json({ success: false, message: "Mã lớp không hợp lệ" });
   try {
     const assignments = await prisma.teachingAssignment.findMany({
-      where: { classId, status: "ACTIVE" },
+      where: { classId, status: "ACTIVE", class: classTeachingScope(req) },
       orderBy: [{ role: "asc" }, { catechist: { fullName: "asc" } }],
       include: { catechist: true },
     });

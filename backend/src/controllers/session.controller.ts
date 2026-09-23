@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { AuthRequest } from "../middlewares/auth.middleware.js";
 import { prisma } from "../db/prisma.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import {
@@ -6,6 +7,7 @@ import {
   sessionListQuerySchema,
   sessionUpdateSchema,
 } from "../validator/session.validator.js";
+import { sessionTeachingScope } from "../utils/catechist-scope.js";
 
 const sessionInclude = {
   class: { select: { id: true, name: true } },
@@ -17,7 +19,7 @@ const sessionInclude = {
   _count: { select: { attendances: true } },
 } satisfies Prisma.SessionInclude;
 
-export async function listSessions(req: Request, res: Response) {
+export async function listSessions(req: AuthRequest, res: Response) {
   const query = sessionListQuerySchema.safeParse(req.query);
   if (!query.success) {
     return res
@@ -31,6 +33,7 @@ export async function listSessions(req: Request, res: Response) {
 
   const { search, classId, status } = query.data;
   const where: Prisma.SessionWhereInput = {
+    ...sessionTeachingScope(req),
     ...(classId ? { classId } : {}),
     ...(status ? { status } : {}),
     ...(search
@@ -58,15 +61,15 @@ export async function listSessions(req: Request, res: Response) {
   }
 }
 
-export async function getSession(req: Request, res: Response) {
+export async function getSession(req: AuthRequest, res: Response) {
   const id = typeof req.params.id === "string" ? req.params.id : undefined;
   if (!id)
     return res
       .status(400)
       .json({ success: false, message: "Mã buổi học không hợp lệ" });
   try {
-    const session = await prisma.session.findUnique({
-      where: { id },
+    const session = await prisma.session.findFirst({
+      where: { id, ...sessionTeachingScope(req) },
       include: {
         ...sessionInclude,
         attendances: { include: { student: true } },

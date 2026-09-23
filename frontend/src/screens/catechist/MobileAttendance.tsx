@@ -16,6 +16,7 @@ const statusConfig: Record<Status, { label: string; short: string; color: string
 function getToken() { return localStorage.getItem("authToken") || sessionStorage.getItem("authToken"); }
 
 export default function MobileAttendance({ sessionId, onSaved }: { sessionId?: string; onSaved?: () => void }) {
+  const [availableSessionId, setAvailableSessionId] = useState<string | undefined>(sessionId);
   const [data, setData] = useState<AttendanceData | null>(null);
   const [attendance, setAttendance] = useState<Record<string, Status>>({});
   const [loading, setLoading] = useState(true);
@@ -23,10 +24,10 @@ export default function MobileAttendance({ sessionId, onSaved }: { sessionId?: s
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const loadAttendance = async () => {
-    if (!sessionId) return;
+    if (!availableSessionId) return;
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/attendance`, { headers: { Authorization: `Bearer ${getToken()}` } });
+      const response = await fetch(`${API_BASE_URL}/sessions/${availableSessionId}/attendance`, { headers: { Authorization: `Bearer ${getToken()}` } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "Không thể tải điểm danh");
       setData(result.data);
@@ -36,7 +37,21 @@ export default function MobileAttendance({ sessionId, onSaved }: { sessionId?: s
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { void loadAttendance(); }, [sessionId]);
+  useEffect(() => {
+    if (sessionId) {
+      setAvailableSessionId(sessionId);
+      return;
+    }
+    fetch(`${API_BASE_URL}/sessions`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Không thể tải buổi học");
+        setAvailableSessionId(result.data[0]?.id);
+      })
+      .catch((error) => setToast({ msg: error instanceof Error ? error.message : "Không thể tải buổi học", type: "error" }));
+  }, [sessionId]);
+
+  useEffect(() => { void loadAttendance(); }, [availableSessionId]);
 
   if (loading) return <div className="py-10 text-center text-sm text-warm-400">Đang tải danh sách điểm danh...</div>;
   if (!data) return <div className="py-10 text-center text-sm text-red-600">Không thể tải dữ liệu điểm danh.</div>;
@@ -50,7 +65,7 @@ export default function MobileAttendance({ sessionId, onSaved }: { sessionId?: s
   const save = async () => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/attendance`, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` }, body: JSON.stringify({ records: Object.entries(attendance).filter(([, status]) => status).map(([studentId, status]) => ({ studentId, status })) }) });
+      const response = await fetch(`${API_BASE_URL}/sessions/${availableSessionId}/attendance`, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` }, body: JSON.stringify({ records: Object.entries(attendance).filter(([, status]) => status).map(([studentId, status]) => ({ studentId, status })) }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "Không thể lưu điểm danh");
       setToast({ msg: "Đã lưu điểm danh", type: "success" });
