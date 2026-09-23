@@ -1,7 +1,8 @@
 import React, { useState } from "react";
+import parishLogo from "../../assets/images/logoGiaoxuSaNam.jpg";
 import {
   HomeIcon, UsersIcon, BookOpenIcon, CalendarIcon, BarChartIcon,
-  SettingsIcon, LogOutIcon, MenuIcon, ChevronLeftIcon, BellIcon,
+  SettingsIcon, LogOutIcon, MenuIcon, ChevronLeftIcon,
   AwardIcon, FileTextIcon, ClipboardCheckIcon,
 } from "../components/ui";
 
@@ -39,6 +40,13 @@ export default function AdminLayout({ onLogout }: { onLogout: () => void }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const current = navItems.find(n => n.id === screen);
+  const authUser = JSON.parse(localStorage.getItem("authUser") || sessionStorage.getItem("authUser") || "{}") as {
+    email?: string;
+    fullName?: string | null;
+    baptismalName?: string | null;
+  };
+  const displayName = authUser.fullName || authUser.baptismalName || authUser.email?.split("@")[0] || "Người dùng";
+  const initials = displayName.split(/\s+/).filter(Boolean).slice(-2).map((part) => part[0]).join("").toUpperCase();
 
   const screenComponents: Record<AdminScreen, React.ReactElement> = {
     dashboard: <AdminDashboard onNavigate={setScreen} />,
@@ -66,17 +74,13 @@ export default function AdminLayout({ onLogout }: { onLogout: () => void }) {
       >
         {/* Logo */}
         <div className={`flex items-center gap-3 px-4 py-5 border-b border-white/10 ${!sidebarOpen ? "justify-center" : ""}`}>
-          <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <line x1="12" y1="3" x2="12" y2="21" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-              <line x1="5" y1="9" x2="19" y2="9" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-              <line x1="8" y1="21" x2="16" y2="21" stroke="#C9973A" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img src={parishLogo} alt="Logo Giáo xứ Sa Nam" className="w-full h-full object-cover" />
           </div>
           {sidebarOpen && (
             <div className="overflow-hidden">
               <p className="text-white text-sm font-semibold leading-tight" style={{ fontFamily: "var(--font-display)" }}>
-                Giáo Lý Viên
+                Sổ Tay Giáo Lý
               </p>
               <p className="text-white/40 text-xs">Ban Điều Hành</p>
             </div>
@@ -112,13 +116,13 @@ export default function AdminLayout({ onLogout }: { onLogout: () => void }) {
         {/* Footer */}
         <div className={`border-t border-white/10 p-4 flex items-center gap-3 ${!sidebarOpen ? "justify-center" : ""}`}>
           <div className="w-7 h-7 bg-gold-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-gold-400 text-xs font-bold" style={{ fontFamily: "var(--font-display)" }}>AT</span>
+            <span className="text-gold-400 text-xs font-bold" style={{ fontFamily: "var(--font-display)" }}>{initials || "ND"}</span>
           </div>
           {sidebarOpen && (
             <>
               <div className="flex-1 min-w-0">
-                <p className="text-white text-xs font-medium truncate">Anh Trưởng</p>
-                <p className="text-white/40 text-xs truncate">admin@giaoxu.vn</p>
+                <p className="text-white text-xs font-medium truncate">{displayName}</p>
+                <p className="text-white/40 text-xs truncate">{authUser.email || "Chưa cập nhật email"}</p>
               </div>
               <button
                 onClick={onLogout}
@@ -151,12 +155,8 @@ export default function AdminLayout({ onLogout }: { onLogout: () => void }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="relative text-warm-500 hover:text-warm-800 cursor-pointer p-2 rounded-lg hover:bg-warm-100">
-              <BellIcon size={17} />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-gold-500 rounded-full" />
-            </button>
             <div className="w-7 h-7 bg-navy-100 text-navy-800 rounded-full flex items-center justify-center text-xs font-bold" style={{ fontFamily: "var(--font-display)" }}>
-              AT
+              {initials || "ND"}
             </div>
           </div>
         </header>

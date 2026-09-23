@@ -1,177 +1,158 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Card, Button, Badge, Table, Dialog, Input, Select,
-  SectionHeader, Dropdown, EditIcon, PlusIcon, Toast, CalendarIcon,
-  CheckCircleIcon, SearchInput, StatCard,
+    Badge,
+    Button,
+    CalendarIcon,
+    Card,
+    CheckCircleIcon,
+    Dialog,
+    Dropdown,
+    EditIcon,
+    EmptyState,
+    Input,
+    PlusIcon,
+    SearchInput,
+    SectionHeader,
+    Select,
+    Table,
+    Toast,
+    TrashIcon,
 } from "../../components/ui";
+import MobileAttendance from "../catechist/MobileAttendance";
 
-const SESSIONS = [
-  { id: 1, class: "Lớp Xưng Tội 1", topic: "Bí Tích Xưng Tội – Bài 3", catechist: "Chị Maria Nguyễn", date: "08/09/2024", time: "08:00–09:30", room: "Phòng A1", present: 24, total: 26, status: "done" },
-  { id: 2, class: "Lớp Thêm Sức A", topic: "Chúa Thánh Thần – Hoa Trái", catechist: "Anh Giuse Trần", date: "08/09/2024", time: "08:00–09:30", room: "Phòng B1", present: 18, total: 20, status: "done" },
-  { id: 3, class: "Lớp Rước Lễ 1", topic: "Bí Tích Thánh Thể – Bài 5", catechist: "Chị Anna Lê", date: "08/09/2024", time: "09:30–11:00", room: "Phòng C1", present: 0, total: 25, status: "in-progress" },
-  { id: 4, class: "Lớp Rước Lễ 2", topic: "Kinh Nguyện và Cầu Nguyện", catechist: "Anh Phêrô Võ", date: "14/09/2024", time: "09:30–11:00", room: "Phòng C2", present: 0, total: 22, status: "upcoming" },
-  { id: 5, class: "Lớp Xưng Tội 2", topic: "Tội Lỗi và Tha Thứ", catechist: "Chưa phân công", date: "15/09/2024", time: "08:00–09:30", room: "Phòng A2", present: 0, total: 24, status: "upcoming" },
-  { id: 6, class: "Lớp Thêm Sức B", topic: "Bí Tích Thêm Sức – Bài 1", catechist: "Chị Têrêxa Phạm", date: "14/09/2024", time: "14:00–15:30", room: "Phòng B2", present: 0, total: 22, status: "upcoming" },
-];
-
-const statusConfig: Record<string, { label: string; variant: "success" | "navy" | "muted" | "warning" }> = {
-  done: { label: "Hoàn thành", variant: "success" },
-  "in-progress": { label: "Đang diễn ra", variant: "navy" },
-  upcoming: { label: "Sắp tới", variant: "muted" },
+type SessionStatus = "UPCOMING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+type ClassOption = { id: string; name: string };
+type AssignmentOption = { id: string; catechist: { fullName: string; baptismalName: string | null } };
+type Session = {
+  id: string;
+  class: ClassOption;
+  assignment: AssignmentOption | null;
+  topic: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+  room: string | null;
+  status: SessionStatus;
+  _count: { attendances: number };
 };
+type Form = { classId: string; assignmentId: string; topic: string; sessionDate: string; startTime: string; endTime: string; room: string; status: SessionStatus };
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const emptyForm: Form = { classId: "", assignmentId: "", topic: "", sessionDate: "", startTime: "", endTime: "", room: "", status: "UPCOMING" };
+const statusLabels: Record<SessionStatus, string> = { UPCOMING: "Sắp tới", IN_PROGRESS: "Đang diễn ra", COMPLETED: "Hoàn thành", CANCELLED: "Đã hủy" };
+
+function getToken() { return localStorage.getItem("authToken") || sessionStorage.getItem("authToken"); }
+function formatDate(value: string) { return new Intl.DateTimeFormat("vi-VN").format(new Date(value)); }
 
 export default function SessionManagement() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentOption[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [showAdd, setShowAdd] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "week">("list");
+  const [showDialog, setShowDialog] = useState(false);
+  const [editing, setEditing] = useState<Session | null>(null);
+  const [form, setForm] = useState<Form>(emptyForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [attendanceSessionId, setAttendanceSessionId] = useState<string | null>(null);
 
-  const filtered = SESSIONS.filter(s => {
-    const matchSearch = s.class.toLowerCase().includes(search.toLowerCase()) ||
-      s.topic.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = !statusFilter || s.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  const showToast = (message: string, type: "success" | "error" = "success") => { setToast({ message, type }); setTimeout(() => setToast(null), 3000); };
+  const request = async (path: string, options: RequestInit = {}) => {
+    const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}`, ...options.headers } });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Không thể thực hiện thao tác");
+    return result;
+  };
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const loadSessions = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (statusFilter) params.set("status", statusFilter);
+      const [sessionResult, classResult] = await Promise.all([request(`/sessions?${params}`), request("/classes")]);
+      setSessions(sessionResult.data);
+      setClasses(classResult.data);
+    } catch (error) { showToast(error instanceof Error ? error.message : "Không thể tải buổi học", "error"); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { void loadSessions(); }, [search, statusFilter]);
+
+  const updateForm = (field: keyof Form, value: string) => setForm((current) => ({ ...current, [field]: value }));
+  const openCreate = () => { setEditing(null); setForm({ ...emptyForm, classId: classes[0]?.id || "" }); setAssignments([]); setShowDialog(true); };
+  const openEdit = async (session: Session) => {
+    setEditing(session);
+    setForm({ classId: session.class.id, assignmentId: session.assignment?.id || "", topic: session.topic, sessionDate: session.sessionDate.slice(0, 10), startTime: session.startTime, endTime: session.endTime, room: session.room || "", status: session.status });
+    await loadAssignments(session.class.id);
+    setShowDialog(true);
+  };
+  const loadAssignments = async (classId: string) => {
+    try { const result = await request(`/classes/${classId}/assignments`); setAssignments(result.data); }
+    catch (error) { showToast(error instanceof Error ? error.message : "Không thể tải giáo lý viên", "error"); }
+  };
+  const changeClass = (classId: string) => { updateForm("classId", classId); updateForm("assignmentId", ""); void loadAssignments(classId); };
+
+  const saveSession = async () => {
+    if (!form.classId || !form.topic.trim() || !form.sessionDate || !form.startTime || !form.endTime) { showToast("Vui lòng nhập đủ thông tin buổi học", "error"); return; }
+    setSaving(true);
+    try {
+      const payload = { ...form, assignmentId: form.assignmentId || null, room: form.room || null };
+      await request(`/sessions${editing ? `/${editing.id}` : ""}`, { method: editing ? "PATCH" : "POST", body: JSON.stringify(payload) });
+      setShowDialog(false); showToast(editing ? "Đã cập nhật buổi học" : "Đã tạo buổi học"); await loadSessions();
+    } catch (error) { showToast(error instanceof Error ? error.message : "Không thể lưu buổi học", "error"); }
+    finally { setSaving(false); }
+  };
+  const deleteSession = async (session: Session) => {
+    if (!window.confirm(`Xóa buổi học ${session.topic}?`)) return;
+    try { await request(`/sessions/${session.id}`, { method: "DELETE" }); showToast("Đã xóa buổi học"); await loadSessions(); }
+    catch (error) { showToast(error instanceof Error ? error.message : "Không thể xóa buổi học", "error"); }
+  };
+
+  const completed = sessions.filter((session) => session.status === "COMPLETED").length;
+  const upcoming = sessions.filter((session) => session.status === "UPCOMING").length;
 
   return (
     <div className="p-6 space-y-5 max-w-6xl mx-auto">
-      <SectionHeader
-        title="Quản lý buổi học"
-        subtitle="Lịch học tháng 9/2024"
-        action={
-          <Button variant="primary" onClick={() => setShowAdd(true)}>
-            <PlusIcon size={14} /> Tạo buổi học
-          </Button>
-        }
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Tổng buổi học" value={SESSIONS.length} icon={<CalendarIcon size={18} />} color="navy" />
-        <StatCard label="Hoàn thành" value={SESSIONS.filter(s => s.status === "done").length} color="green" icon={<CheckCircleIcon size={18} />} />
-        <StatCard label="Sắp diễn ra" value={SESSIONS.filter(s => s.status === "upcoming").length} color="gold" icon={<CalendarIcon size={18} />} />
-        <StatCard label="Chưa điểm danh" value="1" color="red" icon={<CalendarIcon size={18} />} />
+      <SectionHeader title="Quản lý buổi học" subtitle={`${sessions.length} buổi học`} action={<Button variant="primary" onClick={openCreate}><PlusIcon size={14} /> Tạo buổi học</Button>} />
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="p-4"><p className="text-xs text-warm-500">Tổng buổi học</p><p className="text-2xl font-bold text-navy-900 mt-1">{sessions.length}</p></Card>
+        <Card className="p-4"><p className="text-xs text-warm-500">Hoàn thành</p><p className="text-2xl font-bold text-emerald-700 mt-1">{completed}</p></Card>
+        <Card className="p-4"><p className="text-xs text-warm-500">Sắp tới</p><p className="text-2xl font-bold text-gold-600 mt-1">{upcoming}</p></Card>
       </div>
-
       <Card>
-        <div className="p-4 border-b border-warm-100 flex flex-wrap gap-3 items-center">
-          <div className="flex-1 min-w-44">
-            <SearchInput value={search} onChange={setSearch} placeholder="Tìm lớp, chủ đề..." />
-          </div>
-          <Select
-            value={statusFilter}
-            onChange={setStatusFilter}
-            placeholder="Tất cả trạng thái"
-            options={[
-              { value: "done", label: "Hoàn thành" },
-              { value: "in-progress", label: "Đang diễn ra" },
-              { value: "upcoming", label: "Sắp tới" },
-            ]}
-            className="w-44"
-          />
-          <div className="flex gap-1 bg-warm-100 rounded-lg p-1">
-            <button onClick={() => setViewMode("list")} className={`px-3 py-1 text-xs font-medium rounded cursor-pointer ${viewMode === "list" ? "bg-white text-warm-900 shadow-sm" : "text-warm-500"}`}>
-              Danh sách
-            </button>
-            <button onClick={() => setViewMode("week")} className={`px-3 py-1 text-xs font-medium rounded cursor-pointer ${viewMode === "week" ? "bg-white text-warm-900 shadow-sm" : "text-warm-500"}`}>
-              Lịch tuần
-            </button>
-          </div>
-        </div>
-
-        {viewMode === "list" ? (
-          <Table
-            headers={["Lớp học", "Chủ đề bài giảng", "Giáo lý viên", "Ngày", "Giờ", "Phòng", "Điểm danh", "Trạng thái", ""]}
-            rows={filtered.map(s => [
-              <span className="font-medium text-warm-900">{s.class}</span>,
-              <span className="text-warm-600 max-w-48 block truncate">{s.topic}</span>,
-              s.catechist === "Chưa phân công"
-                ? <Badge variant="warning">Chưa phân công</Badge>
-                : <span className="text-warm-500 text-sm">{s.catechist}</span>,
-              <span className="text-warm-500 text-sm">{s.date}</span>,
-              <span className="text-warm-500 text-sm">{s.time}</span>,
-              <span className="text-warm-500 text-sm">{s.room}</span>,
-              s.status === "done"
-                ? <span className="text-emerald-700 font-medium text-sm">{s.present}/{s.total}</span>
-                : <span className="text-warm-300 text-sm">—/{s.total}</span>,
-              <Badge variant={statusConfig[s.status].variant}>{statusConfig[s.status].label}</Badge>,
-              <Dropdown
-                trigger={
-                  <button className="text-warm-400 hover:text-warm-700 p-1 rounded cursor-pointer">
-                    <span className="text-lg leading-none">···</span>
-                  </button>
-                }
-                items={[
-                  { label: "Điểm danh", icon: <CheckCircleIcon size={14} />, onClick: () => showToast("Mở điểm danh...") },
-                  { label: "Chỉnh sửa", icon: <EditIcon />, onClick: () => showToast("Mở chỉnh sửa...") },
-                  { label: "Xóa", danger: true, onClick: () => showToast("Đã xóa buổi học") },
-                ]}
-              />,
-            ])}
-          />
-        ) : (
-          /* Week calendar view */
-          <div className="p-4">
-            <div className="grid grid-cols-7 gap-1 mb-2">
-              {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map(d => (
-                <div key={d} className="text-center text-xs font-semibold text-warm-500 py-2">{d}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: 7 }, (_, i) => {
-                const dayNum = i + 9;
-                const daySessions = SESSIONS.filter(() => i === 5 || i === 6);
-                return (
-                  <div key={i} className={`min-h-24 rounded-lg border p-1.5 ${i >= 5 ? "border-navy-100 bg-navy-50/30" : "border-warm-100"}`}>
-                    <p className={`text-xs font-medium mb-1 ${i >= 5 ? "text-navy-700" : "text-warm-500"}`}>{dayNum}</p>
-                    {i === 6 && SESSIONS.slice(0, 3).map((s, si) => (
-                      <div key={si} className="bg-navy-900 text-white text-xs rounded px-1 py-0.5 mb-1 truncate cursor-pointer hover:bg-navy-800">
-                        {s.class}
-                      </div>
-                    ))}
-                    {i === 5 && SESSIONS.slice(5, 6).map((s, si) => (
-                      <div key={si} className="bg-gold-500 text-white text-xs rounded px-1 py-0.5 mb-1 truncate cursor-pointer hover:bg-gold-600">
-                        {s.class}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <div className="p-4 border-b border-warm-100 flex gap-3 items-center"><div className="flex-1"><SearchInput value={search} onChange={setSearch} placeholder="Tìm lớp, chủ đề..." /></div><Select value={statusFilter} onChange={setStatusFilter} placeholder="Tất cả trạng thái" options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} className="w-44" /></div>
+        {loading ? <div className="py-16 text-center text-sm text-warm-400">Đang tải buổi học...</div> : sessions.length === 0 ? <EmptyState icon={<CalendarIcon size={40} />} title="Chưa có buổi học" description="Tạo buổi học đầu tiên cho một lớp" /> : <Table headers={["Lớp học", "Chủ đề", "Giáo lý viên", "Ngày", "Giờ", "Phòng", "Điểm danh", "Trạng thái", ""]} rows={sessions.map((session) => [
+          <span className="font-medium text-warm-900">{session.class.name}</span>,
+          <span className="text-warm-600 max-w-48 block truncate">{session.topic}</span>,
+          session.assignment ? <span className="text-warm-500 text-sm">{session.assignment.catechist.fullName}</span> : <Badge variant="warning">Chưa phân công</Badge>,
+          <span className="text-warm-500 text-sm">{formatDate(session.sessionDate)}</span>,
+          <span className="text-warm-500 text-sm">{session.startTime}–{session.endTime}</span>,
+          <span className="text-warm-500 text-sm">{session.room || "-"}</span>,
+          <span className="text-warm-500 text-sm">{session._count.attendances}</span>,
+          <Badge variant={session.status === "COMPLETED" ? "success" : session.status === "IN_PROGRESS" ? "navy" : session.status === "CANCELLED" ? "danger" : "muted"}>{statusLabels[session.status]}</Badge>,
+          <Dropdown dropUp trigger={<button className="text-warm-400 hover:text-warm-700 p-1 rounded cursor-pointer"><span className="text-lg leading-none">···</span></button>} items={[{ label: "Điểm danh", icon: <CheckCircleIcon size={14} />, onClick: () => setAttendanceSessionId(session.id) }, { label: "Chỉnh sửa", icon: <EditIcon />, onClick: () => void openEdit(session) }, { label: "Xóa", icon: <TrashIcon />, danger: true, onClick: () => void deleteSession(session) }]} />,
+        ])} />}
+        <div className="px-4 py-3 border-t border-warm-100"><p className="text-xs text-warm-400">Hiển thị {sessions.length} buổi học</p></div>
       </Card>
-
-      <Dialog
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        title="Tạo buổi học mới"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowAdd(false)}>Hủy</Button>
-            <Button variant="primary" onClick={() => { setShowAdd(false); showToast("Đã tạo buổi học!"); }}>Tạo</Button>
-          </>
-        }
-      >
+      <Dialog open={showDialog} onClose={() => setShowDialog(false)} title={editing ? "Chỉnh sửa buổi học" : "Tạo buổi học mới"} footer={<><Button variant="secondary" onClick={() => setShowDialog(false)}>Hủy</Button><Button variant="primary" onClick={() => void saveSession()} disabled={saving}>{saving ? "Đang lưu..." : "Lưu"}</Button></>}>
         <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Lớp học"
-            placeholder="Chọn lớp"
-            options={SESSIONS.map(s => ({ value: s.id.toString(), label: s.class }))}
-            className="col-span-2"
-          />
-          <Input label="Chủ đề bài giảng" placeholder="Bí Tích Xưng Tội – Bài 1" className="col-span-2" />
-          <Input label="Ngày học" type="date" />
-          <Input label="Giờ bắt đầu" type="time" />
-          <Input label="Giờ kết thúc" type="time" />
-          <Input label="Phòng học" placeholder="Phòng A1" />
+          <Select label="Lớp học" value={form.classId} onChange={changeClass} options={classes.map((item) => ({ value: item.id, label: item.name }))} placeholder="Chọn lớp" className="col-span-2" />
+          <Input label="Chủ đề bài giảng" value={form.topic} onChange={(value) => updateForm("topic", value)} className="col-span-2" />
+          <Select label="Giáo lý viên (tùy chọn)" value={form.assignmentId} onChange={(value) => updateForm("assignmentId", value)} options={assignments.map((item) => ({ value: item.id, label: `${item.catechist.fullName}${item.catechist.baptismalName ? ` - ${item.catechist.baptismalName}` : ""}` }))} placeholder="Chưa phân công" />
+          <Select label="Trạng thái" value={form.status} onChange={(value) => updateForm("status", value)} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} />
+          <Input label="Ngày học" type="date" value={form.sessionDate} onChange={(value) => updateForm("sessionDate", value)} />
+          <Input label="Phòng học (tùy chọn)" value={form.room} onChange={(value) => updateForm("room", value)} />
+          <Input label="Giờ bắt đầu" type="time" value={form.startTime} onChange={(value) => updateForm("startTime", value)} />
+          <Input label="Giờ kết thúc" type="time" value={form.endTime} onChange={(value) => updateForm("endTime", value)} />
         </div>
       </Dialog>
-
-      {toast && <Toast message={toast} type="success" onClose={() => setToast(null)} />}
+      <Dialog open={attendanceSessionId !== null} onClose={() => setAttendanceSessionId(null)} title="Điểm danh buổi học">
+        {attendanceSessionId && <MobileAttendance sessionId={attendanceSessionId} onSaved={() => { setAttendanceSessionId(null); void loadSessions(); }} />}
+      </Dialog>
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

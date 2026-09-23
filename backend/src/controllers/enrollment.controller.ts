@@ -1,10 +1,12 @@
 import type { Request, Response } from "express";
+import type { AuthRequest } from "../middlewares/auth.middleware.js";
 import { prisma } from "../db/prisma.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import {
   enrollmentCreateSchema,
   enrollmentUpdateSchema,
 } from "../validator/enrollment.validator.js";
+import { classTeachingScope } from "../utils/catechist-scope.js";
 
 function getClassId(req: Request) {
   return typeof req.params.classId === "string"
@@ -12,7 +14,7 @@ function getClassId(req: Request) {
     : undefined;
 }
 
-export async function listClassEnrollments(req: Request, res: Response) {
+export async function listClassEnrollments(req: AuthRequest, res: Response) {
   const classId = getClassId(req);
   if (!classId)
     return res
@@ -21,7 +23,7 @@ export async function listClassEnrollments(req: Request, res: Response) {
 
   try {
     const enrollments = await prisma.enrollment.findMany({
-      where: { classId },
+      where: { classId, class: classTeachingScope(req) },
       orderBy: { student: { fullName: "asc" } },
       include: { student: true },
     });

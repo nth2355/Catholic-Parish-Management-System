@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { AuthRequest } from "../middlewares/auth.middleware.js";
 import { prisma } from "../db/prisma.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import {
@@ -7,6 +8,7 @@ import {
   classListQuerySchema,
   classUpdateSchema,
 } from "../validator/class.validator.js";
+import { classTeachingScope } from "../utils/catechist-scope.js";
 
 export async function listAcademicYears(_req: Request, res: Response) {
   try {
@@ -52,7 +54,7 @@ export async function createAcademicYear(req: Request, res: Response) {
   }
 }
 
-export async function listClasses(req: Request, res: Response) {
+export async function listClasses(req: AuthRequest, res: Response) {
   const query = classListQuerySchema.safeParse(req.query);
   if (!query.success) {
     return res.status(400).json({
@@ -64,6 +66,7 @@ export async function listClasses(req: Request, res: Response) {
 
   const { search, level, status, academicYearId } = query.data;
   const where: Prisma.ClassWhereInput = {
+    ...classTeachingScope(req),
     ...(level ? { level } : {}),
     ...(status ? { status } : {}),
     ...(academicYearId ? { academicYearId } : {}),
@@ -77,6 +80,14 @@ export async function listClasses(req: Request, res: Response) {
       include: {
         academicYear: true,
         _count: { select: { enrollments: true } },
+        assignments: {
+          where: { status: "ACTIVE" },
+          include: {
+            catechist: {
+              select: { id: true, fullName: true, baptismalName: true },
+            },
+          },
+        },
       },
     });
     return res.json({ success: true, data: classes });
@@ -88,7 +99,7 @@ export async function listClasses(req: Request, res: Response) {
   }
 }
 
-export async function getClass(req: Request, res: Response) {
+export async function getClass(req: AuthRequest, res: Response) {
   const classId = typeof req.params.id === "string" ? req.params.id : undefined;
   if (!classId)
     return res
@@ -96,8 +107,8 @@ export async function getClass(req: Request, res: Response) {
       .json({ success: false, message: "Mã lớp không hợp lệ" });
 
   try {
-    const classRecord = await prisma.class.findUnique({
-      where: { id: classId },
+    const classRecord = await prisma.class.findFirst({
+      where: { id: classId, ...classTeachingScope(req) },
       include: {
         academicYear: true,
         enrollments: { include: { student: true } },
